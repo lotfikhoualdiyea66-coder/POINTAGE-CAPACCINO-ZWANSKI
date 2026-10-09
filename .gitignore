@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.env
+*.db
+node_modules/
+apps/web/dist/
+.gradle/
+**/build/
+local.properties
+*.tsbuildinfo
+apps/web/vite.config.js
+apps/web/vite.config.d.ts
+infra/.env

@@ -1,0 +1,14 @@
+[Unit]
+Description=Cappuccino Lac 1 Attendance API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cappuccino-attendance/apps/api
+ExecStart=/opt/cappuccino-attendance/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
