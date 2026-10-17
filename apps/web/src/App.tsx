@@ -47,6 +47,14 @@ export default function App() {
         logout: "تسجيل الخروج",
         serverOnline: "الخادم متصل",
         serverOffline: "الخادم غير متصل",
+        diagnostics: "تشخيص النظام",
+        apiStatus: "واجهة API",
+        databaseStatus: "قاعدة البيانات",
+        latency: "زمن الاستجابة",
+        lastChecked: "آخر تحقق",
+        checking: "جارٍ التحقق",
+        online: "متاح",
+        offline: "غير متاح",
         overview: "نظرة عامة",
         employees: "الموظفون",
         present: "الحاضرون",
@@ -81,6 +89,14 @@ export default function App() {
         logout: "Déconnexion",
         serverOnline: "Serveur en ligne",
         serverOffline: "Serveur hors ligne",
+        diagnostics: "Diagnostic système",
+        apiStatus: "API",
+        databaseStatus: "Base de données",
+        latency: "Latence",
+        lastChecked: "Dernière vérification",
+        checking: "Vérification…",
+        online: "Disponible",
+        offline: "Indisponible",
         overview: "Vue d’ensemble",
         employees: "Employés",
         present: "Présents",
@@ -108,6 +124,9 @@ export default function App() {
       };
 
   const [health, setHealth] = useState("Checking");
+  const [databaseHealth, setDatabaseHealth] = useState("Checking");
+  const [lastDiagnosticCheck, setLastDiagnosticCheck] = useState<string | null>(null);
+  const [diagnosticLatency, setDiagnosticLatency] = useState<number | null>(null);
   const [token, setToken] = useState(() => sessionStorage.getItem("auth_token"));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobFunctions, setJobFunctions] = useState<JobFunction[]>([]);
@@ -126,15 +145,45 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadData = async () => {
-      try {
-        const healthResponse = await fetch(`${apiBase}/api/v1/health`);
-        const healthData = await healthResponse.json();
-        if (!cancelled) setHealth(healthData.status ?? "offline");
-      } catch {
-        if (!cancelled) setHealth("offline");
-      }
+    let checkInProgress = false;
 
+    const checkServices = async () => {
+      if (checkInProgress) return;
+      checkInProgress = true;
+      const startedAt = performance.now();
+      try {
+        const [apiResult, databaseResult] = await Promise.allSettled([
+          fetch(`${apiBase}/api/v1/health`).then(async (response) => {
+            if (!response.ok) throw new Error("API health check failed");
+            return await response.json() as { status: string };
+          }),
+          fetch(`${apiBase}/api/v1/ready`).then(async (response) => {
+            if (!response.ok) throw new Error("Database readiness check failed");
+            return await response.json() as { status: string };
+          }),
+        ]);
+
+        if (cancelled) return;
+        setHealth(apiResult.status === "fulfilled" && apiResult.value.status === "ok" ? "ok" : "offline");
+        setDatabaseHealth(databaseResult.status === "fulfilled" && databaseResult.value.status === "ready" ? "ok" : "offline");
+        setDiagnosticLatency(Math.round(performance.now() - startedAt));
+        setLastDiagnosticCheck(new Date().toISOString());
+      } finally {
+        checkInProgress = false;
+      }
+    };
+
+    void checkServices();
+    const intervalId = window.setInterval(() => void checkServices(), 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadData = async () => {
       if (!token) {
         if (!cancelled) {
           setEmployees([]);
@@ -248,6 +297,11 @@ export default function App() {
 
   const toggleLanguage = () => setLanguage((current) => current === "fr" ? "ar" : "fr");
   const presentCount = events.filter((event) => event.event_type === "CLOCK_IN").length;
+  const getStatusLabel = (status: string) => {
+    if (status === "ok") return text.online;
+    if (status === "offline") return text.offline;
+    return text.checking;
+  };
 
   if (!token) {
     return (
@@ -332,6 +386,32 @@ export default function App() {
             <div className="metric-box"><span>{text.pending}</span><strong>0</strong></div>
             <div className="metric-box"><span>{text.exceptions}</span><strong>0</strong></div>
           </div>
+        </section>
+
+        <section className="card diagnostics-panel">
+          <h2>{text.diagnostics}</h2>
+          <dl className="diagnostic-list">
+            <div>
+              <dt>{text.apiStatus}</dt>
+              <dd className={health === "ok" ? "diagnostic-ok" : health === "offline" ? "diagnostic-offline" : ""}>
+                {getStatusLabel(health)}
+              </dd>
+            </div>
+            <div>
+              <dt>{text.databaseStatus}</dt>
+              <dd className={databaseHealth === "ok" ? "diagnostic-ok" : databaseHealth === "offline" ? "diagnostic-offline" : ""}>
+                {getStatusLabel(databaseHealth)}
+              </dd>
+            </div>
+            <div>
+              <dt>{text.latency}</dt>
+              <dd>{diagnosticLatency === null ? "—" : `${diagnosticLatency} ms`}</dd>
+            </div>
+            <div>
+              <dt>{text.lastChecked}</dt>
+              <dd>{lastDiagnosticCheck ? new Date(lastDiagnosticCheck).toLocaleTimeString(isArabic ? "ar" : "fr-FR") : "—"}</dd>
+            </div>
+          </dl>
         </section>
 
         <section className="card employee-panel">

@@ -131,6 +131,33 @@ h1, h2, p { margin-top: 0; }
   color: var(--ivory);
 }
 
+.diagnostic-list {
+  display: grid;
+  gap: 0;
+  margin: 8px 0 0;
+}
+
+.diagnostic-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.diagnostic-list dt {
+  color: var(--muted);
+}
+
+.diagnostic-list dd {
+  margin: 0;
+  text-align: end;
+  font-weight: 600;
+}
+
+.diagnostic-ok { color: var(--success); }
+.diagnostic-offline { color: var(--danger); }
+
 .login-main {
   display: grid;
   min-height: calc(100vh - 132px);
