@@ -2,7 +2,7 @@
 
 ## Current build status
 
-The native Kotlin/Jetpack Compose project currently produces a **debug APK**. It opens a French/Arabic safe-setup screen, shows the Africa/Tunis date and time, and keeps the display awake. It explicitly reports that the server is not paired and facial recognition is disabled. It does not capture camera frames, identify employees, or submit attendance events.
+The native Kotlin/Jetpack Compose project currently produces a **debug APK**. It opens a French/Arabic safe-setup screen, shows the Africa/Tunis date and time, and keeps the display awake. It can manually check the API health endpoint at a private LAN IPv4 address. This is only a connectivity check, not device authentication or pairing. It does not capture camera frames, identify employees, or submit attendance events.
 
 This APK is suitable for checking the native app launch and bilingual presentation on the S22. It is not an operational attendance kiosk or a release-signed production app.
 
@@ -27,7 +27,17 @@ The APK is written to:
 apps/android-kiosk/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+A repository copy is available at `apps/android-kiosk/Cappuccino-Kiosk-debug.apk`.
+
 The Gradle wrapper pins Gradle 8.7. No production signing key is included in the repository.
+
+## Check the local API over Wi-Fi
+
+1. Start the API on the dashboard computer with `uvicorn app.main:app --host 0.0.0.0 --port 8000` while connected to a trusted private network.
+2. Allow port 8000 through the computer firewall for private networks only.
+3. On the kiosk, enter `http://<dashboard-computer-LAN-IPv4>:8000` and tap **Tester la connexion** (or the Arabic equivalent).
+
+The app checks only `GET /api/v1/health`. The dashboard computer's `127.0.0.1` address will not work from a phone. HTTP is allowed only for private IPv4 addresses in the app; use verified HTTPS and proper device credentials before operational use. The dashboard UI itself is served separately on port 5173.
 
 ## Install with ADB
 
