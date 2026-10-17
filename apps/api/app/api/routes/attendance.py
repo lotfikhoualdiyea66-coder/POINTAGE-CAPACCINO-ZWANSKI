@@ -3,9 +3,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_db, require_admin
 from app.models.attendance import AttendanceEvent
 from app.models.employee import Employee
+from app.models.user import User
 from app.schemas.attendance import EventCreate, EventRead
 from app.services.attendance_rules import state_from_events, validate_transition
 
@@ -13,7 +14,7 @@ router = APIRouter(prefix="/api/v1", tags=["attendance"])
 
 
 @router.get("/attendance")
-def list_events(db: Session = Depends(get_db)):
+def list_events(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     events = db.query(AttendanceEvent).order_by(AttendanceEvent.event_time.desc()).all()
     return [{
         "id": event.id,
@@ -26,7 +27,11 @@ def list_events(db: Session = Depends(get_db)):
 
 
 @router.post("/attendance/events", response_model=EventRead)
-def create_event(payload: EventCreate, db: Session = Depends(get_db)):
+def create_event(
+    payload: EventCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
     employee = db.query(Employee).filter(Employee.id == payload.employee_id).first()
     if not employee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")

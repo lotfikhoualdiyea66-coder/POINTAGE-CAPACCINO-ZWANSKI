@@ -11,24 +11,32 @@ This repository contains a local-first attendance and shift management system fo
 ## Quick start
 
 ### Backend
-`powershell
+```powershell
 cd apps/api
 python -m venv .venv
 . .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
-# Edit .env and set a unique INITIAL_ADMIN_PASSWORD before first bootstrap.
+# Set a unique SECRET_KEY (at least 32 characters) and INITIAL_ADMIN_PASSWORD in .env.
 python -m pytest
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-`
+```
+
+After the API starts, initialize the first administrator once:
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/auth/bootstrap
+```
+
+Open the dashboard and sign in using `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD`. Employee and attendance management requires an administrator login.
 
 ### Frontend
-`powershell
+```powershell
 cd apps/web
 npm install
 npm run build
 npm run dev -- --host 0.0.0.0
-`
+```
 
 ### Android kiosk
 The Android project builds a debug APK with the Gradle wrapper:

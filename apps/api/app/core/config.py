@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "sqlite:///./attendance_dev.db"
     secret_key: str = ""
+    access_token_expire_minutes: int = 30
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     initial_admin_email: str = "admin@cappuccino.example"
     initial_admin_password: str = ""

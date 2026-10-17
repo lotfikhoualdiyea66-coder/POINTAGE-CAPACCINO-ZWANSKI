@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_db, require_admin
 from app.models.attendance import AttendanceEvent
 from app.models.employee import Employee
+from app.models.user import User
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 
 
 @router.get("/dashboard/overview")
-def dashboard_overview(db: Session = Depends(get_db)):
+def dashboard_overview(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     employees = db.query(Employee).count()
     events = db.query(AttendanceEvent).order_by(AttendanceEvent.event_time.desc()).limit(10).all()
     return {
