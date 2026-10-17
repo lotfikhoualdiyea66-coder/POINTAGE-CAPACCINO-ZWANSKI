@@ -158,6 +158,61 @@ h1, h2, p { margin-top: 0; }
 .diagnostic-ok { color: var(--success); }
 .diagnostic-offline { color: var(--danger); }
 
+.date-filter {
+  width: min(220px, 45%);
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table-scroll table {
+  min-width: 640px;
+}
+
+.table-scroll td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.double-shift-label {
+  display: block;
+  color: var(--warning);
+}
+
+.workday-status {
+  display: inline-block;
+  max-width: 180px;
+}
+
+.status-working,
+.status-on_break,
+.status-target_reached,
+.status-complete { color: var(--success); }
+
+.status-short_day { color: var(--warning); }
+.status-not_started { color: var(--muted); }
+
+.schedule-forms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.schedule-forms h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .login-main {
   display: grid;
   min-height: calc(100vh - 132px);
@@ -312,6 +367,10 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .schedule-forms {
+    grid-template-columns: 1fr;
+  }
+
   .topbar {
     flex-direction: column;
     align-items: flex-start;
@@ -338,6 +397,10 @@ th {
 
   .section-heading {
     align-items: flex-start;
+  }
+
+  .date-filter {
+    width: 45%;
   }
 
   .employee-panel {

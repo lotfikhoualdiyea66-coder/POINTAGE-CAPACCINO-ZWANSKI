@@ -6,6 +6,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.employees import router as employees_router
 from app.api.routes.health import router as health_router
+from app.api.routes.shifts import router as shifts_router
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
@@ -27,6 +28,7 @@ app.include_router(auth_router)
 app.include_router(employees_router)
 app.include_router(attendance_router)
 app.include_router(dashboard_router)
+app.include_router(shifts_router)
 
 
 @app.get("/")

@@ -2,7 +2,7 @@
 
 ## Current build status
 
-The native Kotlin/Jetpack Compose project currently produces a **debug APK**. It opens a French/Arabic safe-setup screen, shows the Africa/Tunis date and time, and keeps the display awake. It saves a private-LAN API address and automatically checks the health endpoint at startup and every 30 seconds. This is only a connectivity check, not device authentication or pairing. It does not capture camera frames, identify employees, or submit attendance events.
+The native Kotlin/Jetpack Compose project currently produces **debug APKs**. It opens a French/Arabic safe-setup screen, shows the Africa/Tunis date and time, and keeps the display awake. It saves a private-LAN API address and automatically checks the health endpoint at startup and every 30 seconds. The optional face-camera diagnostic processes frames in memory with YuNet and reports only a face count; it does not store frames, match employees, or submit attendance events.
 
 This APK is suitable for checking the native app launch and bilingual presentation on the S22. It is not an operational attendance kiosk or a release-signed production app.
 
@@ -21,13 +21,16 @@ cd apps/android-kiosk
 .\gradlew.bat testDebugUnitTest assembleDebug
 ```
 
-The APK is written to:
+The OpenCV model-load smoke test can be run on a connected emulator/device with `.\gradlew.bat connectedDebugAndroidTest`.
+
+ABI-split APKs are written to:
 
 ```text
-apps/android-kiosk/app/build/outputs/apk/debug/app-debug.apk
+apps/android-kiosk/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+apps/android-kiosk/app/build/outputs/apk/debug/app-x86_64-debug.apk
 ```
 
-A repository copy is available at `apps/android-kiosk/Cappuccino-Kiosk-debug.apk`.
+Use ARM64 for the S22 and x86_64 for the Android emulator. The repository copy at `apps/android-kiosk/Cappuccino-Kiosk-debug.apk` is the ARM64 build.
 
 The Gradle wrapper pins Gradle 8.7. No production signing key is included in the repository.
 
@@ -57,7 +60,7 @@ The kiosk writes non-sensitive connection diagnostics to its private app storage
 5. Install the debug APK:
 
    ```powershell
-   adb install -r apps\android-kiosk\app\build\outputs\apk\debug\app-debug.apk
+   adb install -r apps\android-kiosk\app\build\outputs\apk\debug\app-arm64-v8a-debug.apk
    ```
 
 To uninstall the development build:
@@ -68,9 +71,10 @@ adb uninstall com.cappuccino.kiosk
 
 ## Before operational attendance use
 
-- Pair the kiosk to the Ubuntu server using a one-time, revocable device credential and verified TLS. Neither is implemented in the current APK.
-- Implement and test CameraX capture, liveness, and the licensed local recognition provider. Do not enable face collection until licensing, privacy, and organizational authorization are recorded.
+- Pair the kiosk to the API using a one-time, revocable device credential and verified TLS. This is not implemented yet.
+- Implement employee-template enrollment/matching and validated liveness. Bundled YuNet/SFace currently power face-detection diagnostics only.
+- A phone's built-in Android biometric prompt authenticates the device owner; it cannot identify different employees. Fingerprint attendance requires a compatible external reader and its Android SDK.
 - Implement server-side event submission with unique idempotency IDs, acknowledgements, and a bounded encrypted outbox before enabling attendance actions.
-- Validate the app on the physical S22, including camera conditions, connectivity loss, restart behavior, thermal behavior, and accessibility.
+- Validate the app on the physical S22, including camera conditions, connectivity loss, restart behavior, thermal behavior, and accessibility. Emulator testing is not a substitute.
 - Provision Android Enterprise device-owner/Lock Task mode only through the documented administrator process. The current build does not lock the phone down.
 - Create a separately protected production signing key and release APK only after the above acceptance checks.

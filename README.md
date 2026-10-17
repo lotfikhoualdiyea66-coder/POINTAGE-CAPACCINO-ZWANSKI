@@ -59,11 +59,16 @@ cd apps/android-kiosk
 .\gradlew.bat assembleDebug
 ```
 
-APK output: `apps/android-kiosk/app/build/outputs/apk/debug/app-debug.apk`.
+Debug APK outputs:
+
+- S22: `apps/android-kiosk/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk`
+- Emulator: `apps/android-kiosk/app/build/outputs/apk/debug/app-x86_64-debug.apk`
+
+The repository copy `apps/android-kiosk/Cappuccino-Kiosk-debug.apk` is the ARM64 build.
 Install on an authorized USB-connected device with:
 
 ```powershell
-adb install -r app\build\outputs\apk\debug\app-debug.apk
+adb install -r app\build\outputs\apk\debug\app-arm64-v8a-debug.apk
 ```
 
 See [docs/ANDROID_KIOSK_SETUP.md](docs/ANDROID_KIOSK_SETUP.md) for the S22 setup steps and current limitations.

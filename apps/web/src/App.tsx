@@ -27,6 +27,36 @@ type AttendanceEvent = {
   source: string;
 };
 
+type ShiftTemplate = {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  break_minutes: number;
+};
+
+type WorkdaySummary = {
+  employee_id: string;
+  employee_code: string;
+  full_name: string;
+  work_date: string;
+  days_worked_this_month: number;
+  worked_minutes: number;
+  break_minutes: number;
+  target_minutes: number;
+  remaining_minutes: number;
+  overtime_minutes: number;
+  shift_count: number;
+  is_double_shift: boolean;
+  shifts: ShiftTemplate[];
+  status: string;
+};
+
+const localDateValue = () => {
+  const current = new Date();
+  return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
+};
+
 const eventLabels: Record<string, string> = {
   CLOCK_IN: "Arrivée",
   CLOCK_OUT: "Départ",
@@ -79,6 +109,37 @@ export default function App() {
         loginFailed: "تعذر تسجيل الدخول. تحقق من البيانات والإعدادات.",
         employeeFailed: "تعذر حفظ الموظف. تحقق من الرمز والحقول.",
         employeeSaved: "تم حفظ الموظف.",
+        workday: "ملخص يوم العمل",
+        workDate: "التاريخ",
+        worked: "ساعات العمل",
+        daysWorked: "أيام العمل هذا الشهر",
+        target: "الهدف",
+        remaining: "المتبقي",
+        schedule: "المناوبات",
+        doubleShift: "مناوبتان",
+        noShift: "بدون مناوبة محددة",
+        notStarted: "لم يبدأ",
+        working: "يعمل الآن",
+        onBreak: "في استراحة",
+        complete: "مكتمل",
+        shortDay: "يوم غير مكتمل",
+        targetReached: "اكتمل الهدف",
+        shiftSetup: "إعداد المناوبات",
+        shiftName: "اسم المناوبة",
+        shiftStart: "بداية المناوبة",
+        shiftEnd: "نهاية المناوبة",
+        breakMinutes: "دقائق الاستراحة",
+        createShift: "إنشاء مناوبة",
+        assignShift: "إسناد مناوبة",
+        chooseEmployee: "اختر موظفاً",
+        chooseShift: "اختر مناوبة",
+        validFrom: "سارية من",
+        validTo: "سارية حتى (اختياري)",
+        shiftCreated: "تم إنشاء المناوبة.",
+        assignmentSaved: "تم حفظ المناوبة للموظف.",
+        scheduleFailed: "تعذر حفظ إعداد المناوبة.",
+        noShifts: "أنشئ مناوبة أولاً.",
+        overtime: "وقت إضافي",
       }
     : {
         title: "Cappuccino Lac 1",
@@ -121,6 +182,37 @@ export default function App() {
         loginFailed: "Connexion impossible. Vérifiez les identifiants et la configuration.",
         employeeFailed: "Enregistrement impossible. Vérifiez le code et les champs.",
         employeeSaved: "Employé enregistré.",
+        workday: "Bilan de la journée",
+        workDate: "Date",
+        worked: "Temps travaillé",
+        daysWorked: "Jours travaillés ce mois",
+        target: "Objectif",
+        remaining: "Restant",
+        schedule: "Planning",
+        doubleShift: "Double shift",
+        noShift: "Aucun shift assigné",
+        notStarted: "Non commencé",
+        working: "En cours",
+        onBreak: "En pause",
+        complete: "Complet",
+        shortDay: "Journée incomplète",
+        targetReached: "Objectif atteint",
+        shiftSetup: "Configuration des shifts",
+        shiftName: "Nom du shift",
+        shiftStart: "Début du shift",
+        shiftEnd: "Fin du shift",
+        breakMinutes: "Minutes de pause",
+        createShift: "Créer un shift",
+        assignShift: "Assigner un shift",
+        chooseEmployee: "Choisir un employé",
+        chooseShift: "Choisir un shift",
+        validFrom: "Valide à partir du",
+        validTo: "Valide jusqu’au (facultatif)",
+        shiftCreated: "Shift créé.",
+        assignmentSaved: "Shift assigné à l’employé.",
+        scheduleFailed: "Impossible d’enregistrer le planning.",
+        noShifts: "Créez d’abord un shift.",
+        overtime: "Heures supplémentaires",
       };
 
   const [health, setHealth] = useState("Checking");
@@ -131,6 +223,21 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobFunctions, setJobFunctions] = useState<JobFunction[]>([]);
   const [events, setEvents] = useState<AttendanceEvent[]>([]);
+  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([]);
+  const [workdays, setWorkdays] = useState<WorkdaySummary[]>([]);
+  const [reportDate, setReportDate] = useState(localDateValue);
+  const [scheduleRefresh, setScheduleRefresh] = useState(0);
+  const [shiftName, setShiftName] = useState("");
+  const [shiftStart, setShiftStart] = useState("08:00");
+  const [shiftEnd, setShiftEnd] = useState("17:00");
+  const [shiftBreakMinutes, setShiftBreakMinutes] = useState("60");
+  const [assignmentEmployeeId, setAssignmentEmployeeId] = useState("");
+  const [assignmentShiftId, setAssignmentShiftId] = useState("");
+  const [assignmentValidFrom, setAssignmentValidFrom] = useState(localDateValue);
+  const [assignmentValidTo, setAssignmentValidTo] = useState("");
+  const [scheduleMessage, setScheduleMessage] = useState("");
+  const [scheduleError, setScheduleError] = useState("");
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -195,28 +302,36 @@ export default function App() {
 
       const headers = { Authorization: `Bearer ${token}` };
       try {
-        const [employeesResponse, functionsResponse, attendanceResponse] = await Promise.all([
+        const [employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse] = await Promise.all([
           fetch(`${apiBase}/api/v1/employees`, { headers }),
           fetch(`${apiBase}/api/v1/functions`, { headers }),
           fetch(`${apiBase}/api/v1/attendance`, { headers }),
+          fetch(`${apiBase}/api/v1/shift-templates`, { headers }),
+          fetch(`${apiBase}/api/v1/dashboard/workday?work_date=${reportDate}`, { headers }),
         ]);
 
-        if ([employeesResponse, functionsResponse, attendanceResponse].some((response) => response.status === 401)) {
+        if ([employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse].some((response) => response.status === 401)) {
           sessionStorage.removeItem("auth_token");
           if (!cancelled) setToken(null);
           return;
         }
 
-        const [employeeData, functionData, attendanceData] = await Promise.all([
+        const [employeeData, functionData, attendanceData, shiftTemplateData, workdayData] = await Promise.all([
           employeesResponse.json(),
           functionsResponse.json(),
           attendanceResponse.json(),
+          shiftTemplatesResponse.json(),
+          workdayResponse.json(),
         ]);
 
         if (!cancelled) {
           setEmployees(Array.isArray(employeeData) ? employeeData : []);
           setJobFunctions(Array.isArray(functionData) ? functionData : []);
           setEvents(Array.isArray(attendanceData) ? attendanceData : []);
+          setShiftTemplates(Array.isArray(shiftTemplateData) ? shiftTemplateData : []);
+          setWorkdays(Array.isArray(workdayData.employees) ? workdayData.employees : []);
+          setAssignmentEmployeeId((current) => current || employeeData[0]?.id || "");
+          setAssignmentShiftId((current) => current || shiftTemplateData[0]?.id || "");
         }
       } catch {
         if (!cancelled) {
@@ -231,7 +346,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, reportDate, scheduleRefresh]);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -289,6 +404,62 @@ export default function App() {
     }
   };
 
+  const handleShiftCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token) return;
+    setScheduleError("");
+    setScheduleMessage("");
+    setIsSavingSchedule(true);
+    try {
+      const response = await fetch(`${apiBase}/api/v1/shift-templates`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: shiftName,
+          start_time: `${shiftStart}:00`,
+          end_time: `${shiftEnd}:00`,
+          break_minutes: Number(shiftBreakMinutes),
+        }),
+      });
+      if (!response.ok) throw new Error(text.scheduleFailed);
+      const created = (await response.json()) as ShiftTemplate;
+      setShiftTemplates((current) => [...current, created].sort((left, right) => left.start_time.localeCompare(right.start_time)));
+      setAssignmentShiftId(created.id);
+      setShiftName("");
+      setScheduleMessage(text.shiftCreated);
+    } catch {
+      setScheduleError(text.scheduleFailed);
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  const handleShiftAssignment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token || !assignmentEmployeeId || !assignmentShiftId) return;
+    setScheduleError("");
+    setScheduleMessage("");
+    setIsSavingSchedule(true);
+    try {
+      const response = await fetch(`${apiBase}/api/v1/employees/${assignmentEmployeeId}/shift-assignments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shift_template_id: assignmentShiftId,
+          valid_from: assignmentValidFrom,
+          valid_to: assignmentValidTo || null,
+        }),
+      });
+      if (!response.ok) throw new Error(text.scheduleFailed);
+      setScheduleMessage(text.assignmentSaved);
+      setScheduleRefresh((current) => current + 1);
+    } catch {
+      setScheduleError(text.scheduleFailed);
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
   const handleLogout = () => {
     sessionStorage.removeItem("auth_token");
     setToken(null);
@@ -296,7 +467,16 @@ export default function App() {
   };
 
   const toggleLanguage = () => setLanguage((current) => current === "fr" ? "ar" : "fr");
-  const presentCount = events.filter((event) => event.event_type === "CLOCK_IN").length;
+  const presentCount = workdays.filter((entry) => ["working", "on_break", "target_reached"].includes(entry.status)).length;
+  const formatMinutes = (minutes: number) => `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}`;
+  const statusLabel = (status: string) => ({
+    not_started: text.notStarted,
+    working: text.working,
+    on_break: text.onBreak,
+    target_reached: text.targetReached,
+    complete: text.complete,
+    short_day: text.shortDay,
+  }[status] ?? status);
   const getStatusLabel = (status: string) => {
     if (status === "ok") return text.online;
     if (status === "offline") return text.offline;
@@ -385,6 +565,53 @@ export default function App() {
             <div className="metric-box"><span>{text.present}</span><strong>{presentCount}</strong></div>
             <div className="metric-box"><span>{text.pending}</span><strong>0</strong></div>
             <div className="metric-box"><span>{text.exceptions}</span><strong>0</strong></div>
+          </div>
+        </section>
+
+        <section className="card panel-wide workday-panel">
+          <div className="section-heading">
+            <h2>{text.workday}</h2>
+            <label className="form-field date-filter">
+              <span>{text.workDate}</span>
+              <input type="date" value={reportDate} onChange={(event) => setReportDate(event.target.value)} />
+            </label>
+          </div>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{text.employees}</th>
+                  <th>{text.schedule}</th>
+                  <th>{text.daysWorked}</th>
+                  <th>{text.worked}</th>
+                  <th>{text.target}</th>
+                  <th>{text.status}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workdays.length === 0 ? (
+                  <tr><td colSpan={6}>{text.noEmployees}</td></tr>
+                ) : workdays.map((workday) => (
+                  <tr key={workday.employee_id}>
+                    <td>
+                      <strong>{workday.full_name}</strong>
+                      <small>{workday.employee_code}</small>
+                    </td>
+                    <td>
+                      {workday.is_double_shift ? <strong className="double-shift-label">{text.doubleShift}</strong> : null}
+                      <span>{workday.shifts.length ? workday.shifts.map((shift) => shift.name).join(" + ") : text.noShift}</span>
+                    </td>
+                    <td>{workday.days_worked_this_month}</td>
+                    <td>
+                      {formatMinutes(workday.worked_minutes)}
+                      <small>{text.remaining}: {formatMinutes(workday.remaining_minutes)}</small>
+                    </td>
+                    <td>{formatMinutes(workday.target_minutes)}</td>
+                    <td><span className={`workday-status status-${workday.status}`}>{statusLabel(workday.status)}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -478,6 +705,72 @@ export default function App() {
               ))
             )}
           </ul>
+        </section>
+
+        <section className="card panel-wide schedule-panel">
+          <h2>{text.shiftSetup}</h2>
+          {scheduleError && <p className="form-error" role="alert">{scheduleError}</p>}
+          {scheduleMessage && <p className="form-success" role="status">{scheduleMessage}</p>}
+          <div className="schedule-forms">
+            <form className="form-stack" onSubmit={handleShiftCreate}>
+              <h3>{text.createShift}</h3>
+              <label className="form-field">
+                <span>{text.shiftName}</span>
+                <input value={shiftName} onChange={(event) => setShiftName(event.target.value)} minLength={2} maxLength={255} required />
+              </label>
+              <div className="time-fields">
+                <label className="form-field">
+                  <span>{text.shiftStart}</span>
+                  <input type="time" value={shiftStart} onChange={(event) => setShiftStart(event.target.value)} required />
+                </label>
+                <label className="form-field">
+                  <span>{text.shiftEnd}</span>
+                  <input type="time" value={shiftEnd} onChange={(event) => setShiftEnd(event.target.value)} required />
+                </label>
+              </div>
+              <label className="form-field">
+                <span>{text.breakMinutes}</span>
+                <input type="number" min={0} max={720} value={shiftBreakMinutes} onChange={(event) => setShiftBreakMinutes(event.target.value)} required />
+              </label>
+              <button className="primary-action" type="submit" disabled={isSavingSchedule}>{text.createShift}</button>
+            </form>
+
+            <form className="form-stack" onSubmit={handleShiftAssignment}>
+              <h3>{text.assignShift}</h3>
+              <label className="form-field">
+                <span>{text.chooseEmployee}</span>
+                <select value={assignmentEmployeeId} onChange={(event) => setAssignmentEmployeeId(event.target.value)} required>
+                  <option value="">{text.chooseEmployee}</option>
+                  {employees.filter((employee) => employee.active).map((employee) => (
+                    <option key={employee.id} value={employee.id}>{employee.full_name} · {employee.employee_code}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>{text.chooseShift}</span>
+                <select value={assignmentShiftId} onChange={(event) => setAssignmentShiftId(event.target.value)} required>
+                  <option value="">{text.chooseShift}</option>
+                  {shiftTemplates.map((shift) => (
+                    <option key={shift.id} value={shift.id}>{shift.name} · {shift.start_time.slice(0, 5)}–{shift.end_time.slice(0, 5)}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="time-fields">
+                <label className="form-field">
+                  <span>{text.validFrom}</span>
+                  <input type="date" value={assignmentValidFrom} onChange={(event) => setAssignmentValidFrom(event.target.value)} required />
+                </label>
+                <label className="form-field">
+                  <span>{text.validTo}</span>
+                  <input type="date" value={assignmentValidTo} onChange={(event) => setAssignmentValidTo(event.target.value)} min={assignmentValidFrom} />
+                </label>
+              </div>
+              <button className="primary-action" type="submit" disabled={isSavingSchedule || shiftTemplates.length === 0}>
+                {text.assignShift}
+              </button>
+              {shiftTemplates.length === 0 && <small>{text.noShifts}</small>}
+            </form>
+          </div>
         </section>
 
         <section className="card">

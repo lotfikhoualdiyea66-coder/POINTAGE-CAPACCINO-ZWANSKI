@@ -3,11 +3,16 @@ package com.cappuccino.kiosk
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.Manifest
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
+import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -153,7 +158,24 @@ fun KioskIdleScreen() {
     val preferences = remember(context) {
         context.getSharedPreferences("kiosk_settings", Context.MODE_PRIVATE)
     }
+    var hasCameraPermission by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    var showFaceDiagnostics by remember { mutableStateOf(false) }
+    var cameraPermissionDenied by remember { mutableStateOf(false) }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasCameraPermission = granted
+        showFaceDiagnostics = granted
+        cameraPermissionDenied = !granted
+    }
     var isArabic by remember { mutableStateOf(false) }
+    if (showFaceDiagnostics && hasCameraPermission) {
+        FaceCameraDiagnosticsScreen(
+            isArabic = isArabic,
+            onClose = { showFaceDiagnostics = false },
+        )
+        return
+    }
     var currentTime by remember { mutableStateOf(ZonedDateTime.now(tunisZone)) }
     var serverUrl by remember { mutableStateOf(preferences.getString("server_url", "") ?: "") }
     var serverUrlToCheck by remember { mutableStateOf(serverUrl) }
@@ -387,6 +409,24 @@ fun KioskIdleScreen() {
             Spacer(Modifier.height(22.dp))
             Button(onClick = { isArabic = !isArabic }) {
                 Text(if (isArabic) "Français" else "العربية")
+            }
+            Button(
+                onClick = {
+                    if (hasCameraPermission) {
+                        showFaceDiagnostics = true
+                    } else {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                },
+            ) {
+                Text(if (isArabic) "اختبار كاميرا الوجه" else "Tester la caméra visage")
+            }
+            if (cameraPermissionDenied) {
+                Text(
+                    if (isArabic) "إذن الكاميرا مرفوض" else "Autorisation caméra refusée",
+                    color = brandMuted,
+                    fontSize = 12.sp,
+                )
             }
             Spacer(Modifier.height(16.dp))
             Text(
