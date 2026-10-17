@@ -30,6 +30,19 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/v1/auth/bootstrap
 
 Open the dashboard and sign in using `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD`. Employee and attendance management requires an administrator login.
 
+### Supabase Postgres
+
+The API can use Supabase Postgres while keeping all database credentials server-side. In the Supabase project, open **Connect** and copy the **Session pooler** URI for an IPv4-hosted FastAPI server. Put that URI in `apps/api/.env` as `DATABASE_URL`, use the `postgresql+psycopg://` driver prefix, URL-encode any reserved characters in the password, and keep `sslmode=require`. Never put the database URI in the web app or commit it.
+
+Before starting the API against Supabase, apply the Alembic migrations:
+
+```powershell
+cd apps/api
+python -m alembic upgrade head
+```
+
+The migration enables RLS on the application tables without public Data API policies. The FastAPI backend continues to use its own administrator JWT login backed by the `users` table; this does not create Supabase Auth users. The API must use the private database URI only on the server.
+
 ### Frontend
 ```powershell
 cd apps/web

@@ -19,7 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
+if engine.dialect.name == "sqlite":
+    Base.metadata.create_all(bind=engine)
 
 app.include_router(health_router)
 app.include_router(auth_router)
