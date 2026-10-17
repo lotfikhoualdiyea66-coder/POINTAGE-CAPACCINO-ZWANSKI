@@ -162,6 +162,35 @@ fun KioskIdleScreen() {
     var healthCheckRequest by remember { mutableStateOf(0) }
     var diagnosticsCopied by remember { mutableStateOf(false) }
     val locale = if (isArabic) Locale.forLanguageTag("ar") else Locale.FRANCE
+    val connectionTitle = when (serverStatus) {
+        "ok" -> if (isArabic) "الخادم متاح" else "API accessible"
+        "offline" -> if (isArabic) "تعذر الاتصال بالخادم" else "Serveur injoignable"
+        "invalid" -> if (isArabic) "عنوان الخادم غير صالح" else "Adresse serveur invalide"
+        "checking" -> if (isArabic) "جارٍ التحقق من الاتصال" else "Vérification de la connexion"
+        else -> if (isArabic) "الإعداد مطلوب" else "Configuration requise"
+    }
+    val connectionMessage = when (serverStatus) {
+        "ok" -> if (isArabic) {
+            "واجهة الخادم متاحة. تسجيل الحضور والتعرف على الموظفين غير مفعّلين بعد. لم يتم التقاط أو حفظ أي بيانات بيومترية."
+        } else {
+            "L’API est joignable. Le pointage et l’identification des employés ne sont pas encore activés. Aucune image ni donnée biométrique n’est capturée ou enregistrée."
+        }
+        "offline" -> if (isArabic) {
+            "تحقق من تشغيل الخادم واتصال الجهازين بشبكة Wi-Fi الخاصة نفسها. لم يتم تسجيل أي حضور."
+        } else {
+            "Vérifiez que le serveur fonctionne et que les deux appareils sont sur le même Wi-Fi privé. Aucun pointage n’est enregistré."
+        }
+        "invalid" -> if (isArabic) {
+            "أدخل عنوان IPv4 خاصاً صالحاً للخادم، مثل http://192.168.1.20:8000."
+        } else {
+            "Saisissez une adresse IPv4 privée valide, par exemple http://192.168.1.20:8000."
+        }
+        else -> if (isArabic) {
+            "أدخل عنوان الخادم واحفظه لاختبار الاتصال. تسجيل الحضور والتعرف على الوجه غير مفعّلين."
+        } else {
+            "Saisissez l’adresse du serveur et enregistrez-la pour tester la connexion. Le pointage et la reconnaissance faciale restent désactivés."
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -255,7 +284,7 @@ fun KioskIdleScreen() {
                     }
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = if (isArabic) "وضع الإعداد مطلوب" else "Configuration requise",
+                        text = connectionTitle,
                         color = brandText,
                         fontSize = 19.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -263,11 +292,7 @@ fun KioskIdleScreen() {
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = if (isArabic) {
-                            "الخادم غير مقترن والتعرّف على الوجه غير مفعّل. لم يتم التقاط أو حفظ أي صورة. يجب إكمال الإعداد والتحقق من الترخيص قبل تسجيل الحضور."
-                        } else {
-                            "Le serveur n’est pas jumelé et la reconnaissance faciale n’est pas activée. Aucune image n’est capturée ni enregistrée. Terminez le jumelage et vérifiez les autorisations avant d’activer le pointage."
-                        },
+                        text = connectionMessage,
                         color = brandMuted,
                         fontSize = 14.sp,
                         lineHeight = 21.sp,
@@ -333,7 +358,7 @@ fun KioskIdleScreen() {
                                 if (isArabic) "جارٍ الاتصال..." else "Vérification..."
                             } else if (isArabic) {
                                 when (serverStatus) {
-                                    "ok" -> "الخادم: متصل"
+                                    "ok" -> "الخادم: متاح"
                                     "checking" -> "الخادم: جارٍ الاتصال..."
                                     "invalid" -> "الخادم: عنوان غير صالح"
                                     "offline" -> "الخادم: غير متصل"
@@ -341,7 +366,7 @@ fun KioskIdleScreen() {
                                 }
                             } else {
                                 when (serverStatus) {
-                                    "ok" -> "Serveur : connecté"
+                                    "ok" -> "API : accessible"
                                     "checking" -> "Serveur : connexion..."
                                     "invalid" -> "Serveur : adresse invalide"
                                     "offline" -> "Serveur : hors ligne"
