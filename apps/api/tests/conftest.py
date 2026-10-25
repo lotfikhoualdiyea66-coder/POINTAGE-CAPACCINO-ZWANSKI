@@ -1,3 +1,11 @@
+import os
+import tempfile
+from pathlib import Path
+
+# Tests drop all tables after each run, so never let them touch the .env database
+# (local dev data or Supabase). Must be set before any app module is imported.
+os.environ["DATABASE_URL"] = "sqlite:///" + (Path(tempfile.gettempdir()) / "cappuccino_api_tests.db").as_posix()
+
 import pytest
 from fastapi.testclient import TestClient
 

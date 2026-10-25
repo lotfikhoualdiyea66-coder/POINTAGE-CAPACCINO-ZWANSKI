@@ -3,6 +3,8 @@ package com.cappuccino.kiosk
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import android.content.Context
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,6 +21,9 @@ class OpenCvFaceEngineTest {
 
         try {
             assertEquals(0, engine.countFaces(blankFrame))
+            engine.loadRecognitionModel()
+            assertNull(engine.extractEmbedding(blankFrame))
+            assertNotNull(context.getFileStreamPath("biometric-models/face_recognition_sface_2021dec.onnx"))
         } finally {
             blankFrame.release()
         }
