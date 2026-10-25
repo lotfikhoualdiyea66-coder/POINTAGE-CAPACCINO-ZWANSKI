@@ -6,6 +6,7 @@ from app.models.employee import Employee, JobFunction
 from app.models.user import User
 from app.core.security import pwd_context
 from app.schemas.employee import EmployeeCreate, EmployeePinUpdate, EmployeeRead
+from app.services.face import enrollment_state
 
 router = APIRouter(prefix="/api/v1", tags=["employees"])
 
@@ -33,7 +34,7 @@ def list_employees(db: Session = Depends(get_db), current_user: User = Depends(r
         job_function_id=e.job_function_id,
         start_date=e.start_date,
         active=e.active,
-        enrollment_state=e.enrollment_state,
+        enrollment_state=enrollment_state(e),
         has_pin=e.pin_hash is not None,
     ) for e in employees]
 

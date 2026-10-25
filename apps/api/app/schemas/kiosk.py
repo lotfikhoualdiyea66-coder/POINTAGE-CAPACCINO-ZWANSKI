@@ -1,6 +1,10 @@
+from typing import Annotated
+
 from pydantic import BaseModel, Field
 
 from app.schemas.employee import PIN_PATTERN
+
+FaceEmbedding = Annotated[list[float], Field(min_length=128, max_length=128)]
 
 
 class KioskPairRequest(BaseModel):
@@ -22,6 +26,11 @@ class KioskCredentials(BaseModel):
 class KioskClockRequest(KioskCredentials):
     event_type: str = Field(..., pattern=r"^(CLOCK_IN|CLOCK_OUT|BREAK_START|BREAK_END)$")
     idempotency_key: str = Field(..., min_length=8, max_length=64)
+    face_embeddings: list[FaceEmbedding] | None = Field(default=None, min_length=1, max_length=3)
+
+
+class KioskFaceEnrollRequest(KioskCredentials):
+    embeddings: list[FaceEmbedding] = Field(..., min_length=3, max_length=5)
 
 
 class KioskEmployeeStatus(BaseModel):
@@ -29,6 +38,8 @@ class KioskEmployeeStatus(BaseModel):
     full_name: str
     state: str
     allowed_actions: list[str]
+    # "verify": capture a face before clocking; "enroll": an admin authorized face enrollment; "none": PIN only.
+    face: str = "none"
 
 
 class KioskClockResponse(KioskEmployeeStatus):

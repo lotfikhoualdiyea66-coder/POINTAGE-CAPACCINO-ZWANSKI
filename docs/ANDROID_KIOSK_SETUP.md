@@ -8,7 +8,9 @@ The native Kotlin/Jetpack Compose project produces **debug APKs** (fine for LAN-
 - **Clocking:** an employee types their employee code and PIN, sees their current status, and taps Arrivée / Début de pause / Fin de pause / Départ. The server stamps the time (Africa/Tunis) and enforces valid transitions; retries after a network error cannot record the same tap twice.
 - **Lockouts:** 5 wrong PINs lock that employee code for 5 minutes; 5 wrong pairing codes lock the client for 15 minutes.
 
-No camera is needed. The optional face-camera diagnostic (setup screen) processes frames in memory with YuNet and reports only a face count; it does not store frames or identify employees.
+- **Face check (optional, off by default):** when enabled in the dashboard, employees whose face is enrolled confirm their identity with the front camera after their PIN: look at the camera, turn the head slightly, look back. Enrollment happens on the kiosk after an admin clicks **Autoriser l'enrôlement du visage** (consent confirmed, valid 30 minutes). Frames are processed on the phone; only face embeddings are sent to the server, which stores them encrypted.
+
+Without the face check, no camera is needed. The face-camera diagnostic on the setup screen reports only a face count.
 
 ## Build on Windows
 

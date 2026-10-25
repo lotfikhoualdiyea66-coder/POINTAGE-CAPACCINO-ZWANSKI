@@ -31,10 +31,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import org.opencv.core.Core
-import org.opencv.core.CvType
 import org.opencv.core.Mat
-import org.opencv.imgproc.Imgproc
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -171,31 +168,5 @@ private class OpenCvFaceAnalyzer(
         } finally {
             image.close()
         }
-    }
-
-    private fun ImageProxy.toBgrMat(): Mat {
-        val plane = planes.first()
-        val source = plane.buffer.duplicate()
-        val rowBytes = width * plane.pixelStride
-        val rgbaBytes = ByteArray(width * height * 4)
-        for (row in 0 until height) {
-            source.position(row * plane.rowStride)
-            source.get(rgbaBytes, row * width * 4, rowBytes)
-        }
-
-        val rgba = Mat(height, width, CvType.CV_8UC4)
-        rgba.put(0, 0, rgbaBytes)
-        val oriented = Mat()
-        when (imageInfo.rotationDegrees) {
-            90 -> Core.rotate(rgba, oriented, Core.ROTATE_90_CLOCKWISE)
-            180 -> Core.rotate(rgba, oriented, Core.ROTATE_180)
-            270 -> Core.rotate(rgba, oriented, Core.ROTATE_90_COUNTERCLOCKWISE)
-            else -> rgba.copyTo(oriented)
-        }
-        val bgr = Mat()
-        Imgproc.cvtColor(oriented, bgr, Imgproc.COLOR_RGBA2BGR)
-        rgba.release()
-        oriented.release()
-        return bgr
     }
 }

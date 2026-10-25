@@ -18,16 +18,26 @@ from app.schemas.kiosk import (
     KioskClockResponse,
     KioskCredentials,
     KioskEmployeeStatus,
+    KioskFaceEnrollRequest,
     KioskPairRequest,
     KioskPairResponse,
 )
 from app.services.attendance_events import InvalidTransitionError, allowed_actions, current_state, record_event
+from app.services.face import (
+    FaceDataUnavailableError,
+    InvalidEmbeddingError,
+    audit,
+    kiosk_face_step,
+    match_score,
+    store_templates,
+)
 from app.services.lockout import AttemptLimiter
 
 router = APIRouter(prefix="/api/v1", tags=["kiosk"])
 
 pairing_limiter = AttemptLimiter(max_failures=5, lock_seconds=15 * 60)
 pin_limiter = AttemptLimiter(max_failures=5, lock_seconds=5 * 60)
+face_limiter = AttemptLimiter(max_failures=5, lock_seconds=5 * 60)
 
 
 @router.post("/kiosk/pair", response_model=KioskPairResponse)
@@ -80,6 +90,7 @@ def _status(db: Session, employee: Employee) -> dict:
         "full_name": employee.full_name,
         "state": state,
         "allowed_actions": allowed_actions(state),
+        "face": kiosk_face_step(db, employee),
     }
 
 
@@ -104,6 +115,10 @@ def kiosk_clock(
     device: KioskDevice = Depends(require_kiosk),
 ):
     employee = _authenticate_employee(db, payload)
+    source, reason = "kiosk_pin", None
+    if kiosk_face_step(db, employee) == "verify":
+        score = _verify_face(db, employee, device, payload.face_embeddings)
+        source, reason = "kiosk_pin_face", f"face_score={score:.3f}"
     event_time = datetime.now(ZoneInfo(settings.timezone)).replace(tzinfo=None, microsecond=0)
     try:
         event = record_event(
@@ -111,13 +126,52 @@ def kiosk_clock(
             employee_id=employee.id,
             event_type=payload.event_type,
             event_time=event_time,
-            source="kiosk_pin",
+            source=source,
             idempotency_key=f"kiosk:{device.id}:{payload.idempotency_key}",
             device_id=device.id,
+            reason=reason,
         )
     except InvalidTransitionError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     return {**_status(db, employee), "event_type": event.event_type, "event_time": event.event_time.isoformat()}
+
+
+def _verify_face(db: Session, employee: Employee, device: KioskDevice, embeddings: list[list[float]] | None) -> float:
+    if not embeddings:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Face verification required")
+    if face_limiter.is_locked(employee.id):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many attempts, try again later")
+    try:
+        score = match_score(db, employee, embeddings)
+    except InvalidEmbeddingError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+    except FaceDataUnavailableError as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Face data unavailable") from error
+    if score < settings.face_match_threshold:
+        face_limiter.fail(employee.id)
+        audit(db, f"kiosk:{device.id}", "face_rejected", f"employee={employee.id} score={score:.3f}")
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Face not recognized")
+    face_limiter.reset(employee.id)
+    return score
+
+
+@router.post("/kiosk/face/enroll", response_model=KioskEmployeeStatus)
+def kiosk_face_enroll(
+    payload: KioskFaceEnrollRequest,
+    db: Session = Depends(get_db),
+    device: KioskDevice = Depends(require_kiosk),
+):
+    employee = _authenticate_employee(db, payload)
+    if kiosk_face_step(db, employee) != "enroll":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Face enrollment is not authorized")
+    try:
+        store_templates(db, employee, payload.embeddings, device.id)
+    except InvalidEmbeddingError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+    except FaceDataUnavailableError as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Face data unavailable") from error
+    return _status(db, employee)
 
 
 @router.get("/kiosk/devices")

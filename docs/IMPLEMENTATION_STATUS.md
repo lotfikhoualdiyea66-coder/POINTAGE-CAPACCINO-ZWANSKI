@@ -24,7 +24,7 @@
 - Emulator model tests pass; physical S22 camera, thermal, and accessibility testing remains pending.
 - APKs are debug-signed ABI splits, not production-signed releases.
 - Kiosk pairing (shared pairing code → per-device token, revocable from the dashboard) and employee code + PIN clock-in/out are implemented. The in-memory lockout counters reset when the API restarts.
-- Face matching/enrollment and liveness are not implemented. Fingerprint attendance requires a compatible external reader and Android SDK.
+- Face check on top of the PIN is implemented (admin-authorized enrollment on the kiosk, encrypted templates, server-side matching, head-turn liveness) and off by default. It still needs real-world tuning on the S22 (lighting, threshold) and an INPDP/consent review before use with real staff. Fingerprint attendance requires a compatible external USB reader and its Android SDK.
 - This workspace still uses local SQLite; Supabase Postgres requires a private database URI and applied migrations.
 - Full Ubuntu systemd deployment requires the target machine and operating-system privileges.
 

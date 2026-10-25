@@ -510,7 +510,19 @@ private fun SetupCard(
 
 private sealed class ClockStep {
     data object Entry : ClockStep()
-    data class Choose(val status: EmployeeStatus, val code: String, val pin: String) : ClockStep()
+    data class Face(
+        val status: EmployeeStatus,
+        val code: String,
+        val pin: String,
+        val mode: FaceCaptureMode,
+        val attempt: Int = 0,
+    ) : ClockStep()
+    data class Choose(
+        val status: EmployeeStatus,
+        val code: String,
+        val pin: String,
+        val faceEmbeddings: List<FloatArray>? = null,
+    ) : ClockStep()
     data class Done(val result: ClockResult) : ClockStep()
 }
 
@@ -558,6 +570,11 @@ private fun ClockCard(
             "Serveur injoignable. Réessayez ; rien n’a été enregistré si l’erreur persiste.",
             "تعذر الاتصال بالخادم. أعد المحاولة.",
         )
+        ApiResult.FaceRejected -> tr(
+            isArabic,
+            "Visage non reconnu. Réessayez face à la caméra, bien éclairé.",
+            "لم يتم التعرف على الوجه. أعد المحاولة أمام الكاميرا في إضاءة جيدة.",
+        )
         ApiResult.KioskUnpaired -> null
     }
 
@@ -578,7 +595,7 @@ private fun ClockCard(
                 delay(6_000)
                 reset()
             }
-            ClockStep.Entry -> Unit
+            is ClockStep.Face, ClockStep.Entry -> Unit
         }
     }
 
@@ -590,10 +607,47 @@ private fun ClockCard(
             val result = KioskApi.identify(serverUrl, kioskToken, code, pin)
             isBusy = false
             when (result) {
-                is ApiResult.Success -> step = ClockStep.Choose(result.value, code, pin)
+                is ApiResult.Success -> step = when (result.value.face) {
+                    "verify" -> ClockStep.Face(result.value, code, pin, FaceCaptureMode.VERIFY)
+                    "enroll" -> ClockStep.Face(result.value, code, pin, FaceCaptureMode.ENROLL)
+                    else -> ClockStep.Choose(result.value, code, pin)
+                }
                 ApiResult.KioskUnpaired -> onUnpaired()
                 else -> {
                     error = errorFor(result)
+                    pin = ""
+                }
+            }
+        }
+    }
+
+    fun onFaceCaptured(face: ClockStep.Face, embeddings: List<FloatArray>) {
+        error = null
+        if (face.mode == FaceCaptureMode.VERIFY) {
+            // The server matches the captures when the action is submitted.
+            step = ClockStep.Choose(face.status, face.code, face.pin, embeddings)
+            return
+        }
+        isBusy = true
+        error = null
+        scope.launch {
+            val result = KioskApi.enrollFace(serverUrl, kioskToken, face.code, face.pin, embeddings)
+            KioskDiagnostics.record(context, "kiosk_face_enroll", "result=${result.javaClass.simpleName}")
+            isBusy = false
+            when (result) {
+                is ApiResult.Success -> {
+                    // Fresh captures of the just-enrolled face also satisfy this first verification.
+                    val proof = if (result.value.face == "verify") embeddings.take(2) else null
+                    step = ClockStep.Choose(result.value, face.code, face.pin, proof)
+                }
+                ApiResult.KioskUnpaired -> onUnpaired()
+                ApiResult.FaceRejected -> {
+                    error = errorFor(result)
+                    step = face.copy(attempt = face.attempt + 1)
+                }
+                else -> {
+                    error = errorFor(result)
+                    step = ClockStep.Entry
                     pin = ""
                 }
             }
@@ -606,7 +660,7 @@ private fun ClockCard(
         val key = pendingKey?.takeIf { it.first == action }?.second ?: UUID.randomUUID().toString()
         pendingKey = action to key
         scope.launch {
-            val result = KioskApi.clock(serverUrl, kioskToken, choice.code, choice.pin, action, key)
+            val result = KioskApi.clock(serverUrl, kioskToken, choice.code, choice.pin, action, key, choice.faceEmbeddings)
             KioskDiagnostics.record(context, "kiosk_clock", "action=$action result=${result.javaClass.simpleName}")
             isBusy = false
             when (result) {
@@ -615,6 +669,11 @@ private fun ClockCard(
                     step = ClockStep.Done(result.value)
                 }
                 ApiResult.KioskUnpaired -> onUnpaired()
+                ApiResult.FaceRejected -> {
+                    pendingKey = null
+                    error = errorFor(result)
+                    step = ClockStep.Face(choice.status, choice.code, choice.pin, FaceCaptureMode.VERIFY)
+                }
                 else -> error = errorFor(result)
             }
         }
@@ -670,6 +729,23 @@ private fun ClockCard(
                         if (isBusy) tr(isArabic, "Vérification…", "جارٍ التحقق…") else tr(isArabic, "Continuer", "متابعة"),
                         fontSize = 17.sp,
                     )
+                }
+            }
+
+            is ClockStep.Face -> {
+                if (isBusy) {
+                    CardTitle(title = tr(isArabic, "Enregistrement…", "جارٍ الحفظ…"))
+                } else {
+                    // A new attempt remounts the camera panel so the liveness sequence restarts cleanly.
+                    androidx.compose.runtime.key(current.attempt) {
+                        FaceCapturePanel(
+                            isArabic = isArabic,
+                            mode = current.mode,
+                            errorMessage = error,
+                            onComplete = { embeddings -> onFaceCaptured(current, embeddings) },
+                            onCancel = { reset() },
+                        )
+                    }
                 }
             }
 

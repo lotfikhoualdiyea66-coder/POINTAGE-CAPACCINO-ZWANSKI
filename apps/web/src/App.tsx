@@ -13,6 +13,11 @@ type Employee = {
   has_pin: boolean;
 };
 
+type FaceCheckStatus = {
+  enabled: boolean;
+  encryption_configured: boolean;
+};
+
 type KioskDevice = {
   id: string;
   device_name: string;
@@ -178,6 +183,24 @@ export default function App() {
         source: "المصدر",
         sourceKiosk: "جهاز الحضور",
         sourceAdmin: "المسؤول",
+        sourceKioskFace: "جهاز الحضور · رمز + وجه",
+        faceCheck: "التحقق من الوجه",
+        faceCheckOn: "مفعّل: الموظفون المسجلون يؤكدون هويتهم بالوجه بعد الرمز السري.",
+        faceCheckOff: "غير مفعّل: الرمز السري فقط.",
+        enable: "تفعيل",
+        disable: "إيقاف",
+        faceKeyMissing: "مفتاح تشفير بيانات الوجه (FACE_DATA_KEY) غير مُعدّ على الخادم.",
+        faceLegal: "بيانات الوجه بيانات حساسة: احصل على موافقة كتابية من كل موظف وتحقق من متطلبات الهيئة الوطنية لحماية المعطيات الشخصية (INPDP).",
+        faceEnrolled: "الوجه مسجّل",
+        facePending: "تسجيل الوجه بانتظار الجهاز (30 دقيقة)",
+        faceNone: "بدون وجه",
+        authorizeFace: "السماح بتسجيل الوجه",
+        deleteFace: "حذف بيانات الوجه",
+        faceConsentPrompt: "هل قدّم هذا الموظف موافقة كتابية على تسجيل وجهه؟ بعد التأكيد، لديه 30 دقيقة لتسجيل وجهه على جهاز الحضور.",
+        faceDeletePrompt: "حذف بيانات الوجه لهذا الموظف نهائياً؟",
+        faceAuthorized: "تم السماح بالتسجيل. اطلب من الموظف إدخال رمزه على جهاز الحضور.",
+        faceDeleted: "تم حذف بيانات الوجه.",
+        faceFailed: "تعذر تنفيذ العملية. تحقق من أن للموظف رمزاً سرياً.",
       }
     : {
         title: "Cappuccino Lac 1",
@@ -268,6 +291,24 @@ export default function App() {
         source: "Source",
         sourceKiosk: "Borne",
         sourceAdmin: "Administrateur",
+        sourceKioskFace: "Borne · PIN + visage",
+        faceCheck: "Vérification faciale",
+        faceCheckOn: "Activée : les employés enrôlés confirment leur identité par le visage après le PIN.",
+        faceCheckOff: "Désactivée : PIN uniquement.",
+        enable: "Activer",
+        disable: "Désactiver",
+        faceKeyMissing: "La clé de chiffrement des visages (FACE_DATA_KEY) n’est pas configurée sur le serveur.",
+        faceLegal: "Les données faciales sont sensibles : obtenez le consentement écrit de chaque employé et vérifiez les exigences de l’INPDP.",
+        faceEnrolled: "Visage enrôlé",
+        facePending: "Enrôlement en attente sur la borne (30 min)",
+        faceNone: "Sans visage",
+        authorizeFace: "Autoriser l’enrôlement du visage",
+        deleteFace: "Supprimer les données faciales",
+        faceConsentPrompt: "Cet employé a-t-il donné son consentement écrit à l’enregistrement de son visage ? Après confirmation, il a 30 minutes pour s’enrôler sur la borne.",
+        faceDeletePrompt: "Supprimer définitivement les données faciales de cet employé ?",
+        faceAuthorized: "Enrôlement autorisé. Demandez à l’employé de saisir son code sur la borne.",
+        faceDeleted: "Données faciales supprimées.",
+        faceFailed: "Opération impossible. Vérifiez que l’employé a un PIN.",
       };
 
   const [health, setHealth] = useState("Checking");
@@ -309,6 +350,7 @@ export default function App() {
   const [pinValue, setPinValue] = useState("");
   const [kioskDevices, setKioskDevices] = useState<KioskDevice[]>([]);
   const [liveRefresh, setLiveRefresh] = useState(0);
+  const [faceCheck, setFaceCheck] = useState<FaceCheckStatus | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -362,28 +404,30 @@ export default function App() {
 
       const headers = { Authorization: `Bearer ${token}` };
       try {
-        const [employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse, kioskResponse] = await Promise.all([
+        const [employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse, kioskResponse, faceResponse] = await Promise.all([
           fetch(`${apiBase}/api/v1/employees`, { headers }),
           fetch(`${apiBase}/api/v1/functions`, { headers }),
           fetch(`${apiBase}/api/v1/attendance`, { headers }),
           fetch(`${apiBase}/api/v1/shift-templates`, { headers }),
           fetch(`${apiBase}/api/v1/dashboard/workday?work_date=${reportDate}`, { headers }),
           fetch(`${apiBase}/api/v1/kiosk/devices`, { headers }),
+          fetch(`${apiBase}/api/v1/settings/face-check`, { headers }),
         ]);
 
-        if ([employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse, kioskResponse].some((response) => response.status === 401)) {
+        if ([employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse, kioskResponse, faceResponse].some((response) => response.status === 401)) {
           sessionStorage.removeItem("auth_token");
           if (!cancelled) setToken(null);
           return;
         }
 
-        const [employeeData, functionData, attendanceData, shiftTemplateData, workdayData, kioskData] = await Promise.all([
+        const [employeeData, functionData, attendanceData, shiftTemplateData, workdayData, kioskData, faceData] = await Promise.all([
           employeesResponse.json(),
           functionsResponse.json(),
           attendanceResponse.json(),
           shiftTemplatesResponse.json(),
           workdayResponse.json(),
           kioskResponse.json(),
+          faceResponse.json(),
         ]);
 
         if (!cancelled) {
@@ -393,6 +437,7 @@ export default function App() {
           setShiftTemplates(Array.isArray(shiftTemplateData) ? shiftTemplateData : []);
           setWorkdays(Array.isArray(workdayData.employees) ? workdayData.employees : []);
           setKioskDevices(Array.isArray(kioskData) ? kioskData : []);
+          setFaceCheck(faceResponse.ok ? faceData : null);
           setAssignmentEmployeeId((current) => current || employeeData[0]?.id || "");
           setAssignmentShiftId((current) => current || shiftTemplateData[0]?.id || "");
         }
@@ -494,6 +539,49 @@ export default function App() {
     } catch {
       setEmployeeError(text.pinFailed);
     }
+  };
+
+  const handleFaceCheckToggle = async () => {
+    if (!token || !faceCheck) return;
+    const response = await fetch(`${apiBase}/api/v1/settings/face-check`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: !faceCheck.enabled }),
+    });
+    if (response.ok) setFaceCheck((await response.json()) as FaceCheckStatus);
+  };
+
+  const handleFaceAuthorize = async (employeeId: string) => {
+    if (!token || !window.confirm(text.faceConsentPrompt)) return;
+    setEmployeeError("");
+    setEmployeeSuccess("");
+    const response = await fetch(`${apiBase}/api/v1/employees/${employeeId}/face/authorize`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ consent_confirmed: true }),
+    });
+    if (!response.ok) {
+      setEmployeeError(text.faceFailed);
+      return;
+    }
+    setEmployees((current) => current.map((item) => item.id === employeeId ? { ...item, enrollment_state: "pending" } : item));
+    setEmployeeSuccess(text.faceAuthorized);
+  };
+
+  const handleFaceDelete = async (employeeId: string) => {
+    if (!token || !window.confirm(text.faceDeletePrompt)) return;
+    setEmployeeError("");
+    setEmployeeSuccess("");
+    const response = await fetch(`${apiBase}/api/v1/employees/${employeeId}/face`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      setEmployeeError(text.faceFailed);
+      return;
+    }
+    setEmployees((current) => current.map((item) => item.id === employeeId ? { ...item, enrollment_state: "not_enrolled" } : item));
+    setEmployeeSuccess(text.faceDeleted);
   };
 
   const handleKioskRevoke = async (deviceId: string) => {
@@ -825,6 +913,12 @@ export default function App() {
                   <strong>{employee.full_name}</strong>
                   <small>
                     {employee.employee_code} · <span className={employee.has_pin ? "pin-ok" : "pin-missing"}>{employee.has_pin ? text.pinSet : text.pinMissing}</span>
+                    {" · "}
+                    <span className={employee.enrollment_state === "enrolled" ? "pin-ok" : ""}>
+                      {employee.enrollment_state === "enrolled"
+                        ? text.faceEnrolled
+                        : employee.enrollment_state === "pending" ? text.facePending : text.faceNone}
+                    </span>
                   </small>
                   {pinEmployeeId === employee.id ? (
                     <form className="pin-form" onSubmit={handlePinSave}>
@@ -844,16 +938,28 @@ export default function App() {
                       <button className="text-button" type="button" onClick={() => setPinEmployeeId(null)}>{text.cancel}</button>
                     </form>
                   ) : (
-                    <button
-                      className="text-button inline-action"
-                      type="button"
-                      onClick={() => {
-                        setPinEmployeeId(employee.id);
-                        setPinValue("");
-                      }}
-                    >
-                      {text.setPin}
-                    </button>
+                    <div className="inline-actions">
+                      <button
+                        className="text-button inline-action"
+                        type="button"
+                        onClick={() => {
+                          setPinEmployeeId(employee.id);
+                          setPinValue("");
+                        }}
+                      >
+                        {text.setPin}
+                      </button>
+                      {faceCheck?.encryption_configured && employee.has_pin && employee.enrollment_state !== "pending" && (
+                        <button className="text-button inline-action" type="button" onClick={() => void handleFaceAuthorize(employee.id)}>
+                          {text.authorizeFace}
+                        </button>
+                      )}
+                      {employee.enrollment_state !== "not_enrolled" && (
+                        <button className="text-button inline-action danger-action" type="button" onClick={() => void handleFaceDelete(employee.id)}>
+                          {text.deleteFace}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </li>
               ))
@@ -943,8 +1049,8 @@ export default function App() {
                     <td>{eventLabels[language][event.event_type] ?? event.event_type}</td>
                     <td>{formatDateTime(event.event_time)}</td>
                     <td>
-                      {event.source === "kiosk_pin"
-                        ? `${text.sourceKiosk}${event.device_id ? ` · ${kioskNames.get(event.device_id) ?? ""}` : ""}`
+                      {event.source.startsWith("kiosk_pin")
+                        ? `${event.source === "kiosk_pin_face" ? text.sourceKioskFace : text.sourceKiosk}${event.device_id ? ` · ${kioskNames.get(event.device_id) ?? ""}` : ""}`
                         : text.sourceAdmin}
                     </td>
                   </tr>
@@ -952,6 +1058,26 @@ export default function App() {
               )}
             </tbody>
           </table>
+        </section>
+
+        <section className="card">
+          <div className="section-heading">
+            <h2>{text.faceCheck}</h2>
+            {faceCheck?.encryption_configured && (
+              <button
+                className={`compact-action ${faceCheck.enabled ? "text-button" : "primary-action"}`}
+                type="button"
+                onClick={() => void handleFaceCheckToggle()}
+              >
+                {faceCheck.enabled ? text.disable : text.enable}
+              </button>
+            )}
+          </div>
+          <p className={faceCheck?.enabled ? "form-success" : ""}>
+            {faceCheck?.enabled ? text.faceCheckOn : text.faceCheckOff}
+          </p>
+          {faceCheck && !faceCheck.encryption_configured && <p className="form-error">{text.faceKeyMissing}</p>}
+          <small className="muted-note">{text.faceLegal}</small>
         </section>
 
         <section className="card">

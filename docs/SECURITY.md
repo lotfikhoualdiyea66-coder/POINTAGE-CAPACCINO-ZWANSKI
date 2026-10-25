@@ -9,7 +9,7 @@
 ## Dashboard authentication
 - Configure a unique `SECRET_KEY` of at least 32 characters and a strong `INITIAL_ADMIN_PASSWORD` before bootstrapping the first administrator.
 - Dashboard access tokens are signed HS256 tokens that expire after 30 minutes.
-- Employee, job-function, attendance, and dashboard endpoints require administrator authorization. Kiosk event submission remains unavailable until device credentials are implemented.
+- Employee, job-function, attendance, and dashboard endpoints require administrator authorization. Kiosks authenticate with a per-device token obtained with the pairing code (`KIOSK_PAIRING_CODE`); tokens are stored hashed and can be revoked from the dashboard.
 - Do not expose the development HTTP service to the internet. Use verified TLS and an authenticated deployment before any production or remote access.
 
 ## Supabase Postgres
@@ -22,6 +22,11 @@
 - Do not store raw face images, camera frames, or biometric vectors in the repository.
 - Use a provider abstraction for biometric templates and disable live enrollment until authorized.
 - Protect any encrypted biometric templates with local key management and restricted access.
+- Face check (on top of the PIN) is **off by default**. Each enrollment needs an administrator authorization with confirmed written consent and expires after 30 minutes unused; authorizations, enrollments, rejections and deletions are written to `audit_logs`.
+- Face templates are 128-number SFace embeddings (no images), encrypted with Fernet using `FACE_DATA_KEY` from the server `.env`. Keep that key out of the repo and backed up separately; losing it means employees re-enroll. Admins can delete an employee's face data at any time.
+- The kiosk sends embeddings to the server over the LAN; until TLS is deployed, keep the kiosk and server on a trusted private Wi-Fi.
+- Liveness is an active head-turn check (defeats printed photos). It does not stop a video replay or a 3D mask, so the face check complements the PIN rather than replacing it.
+- In Tunisia, processing employee biometric data likely requires INPDP authorization; confirm before enabling it for real staff.
 
 ## Operational guidance
 - Use Docker or systemd with non-root service accounts.

@@ -3,6 +3,7 @@ package com.cappuccino.kiosk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,6 +13,8 @@ data class EmployeeStatus(
     val fullName: String,
     val state: String,
     val allowedActions: List<String>,
+    /** "verify", "enroll" or "none". */
+    val face: String,
 )
 
 data class ClockResult(
@@ -34,6 +37,9 @@ sealed class ApiResult<out T> {
 
     /** The requested action does not fit the employee's current state (e.g. clocking in twice). */
     data object InvalidAction : ApiResult<Nothing>()
+
+    /** The face did not match the enrolled employee, or the enrollment captures were inconsistent. */
+    data object FaceRejected : ApiResult<Nothing>()
 
     data object Offline : ApiResult<Nothing>()
 }
@@ -58,14 +64,36 @@ object KioskApi {
         pin: String,
         eventType: String,
         idempotencyKey: String,
+        faceEmbeddings: List<FloatArray>?,
     ): ApiResult<ClockResult> {
         val body = JSONObject()
             .put("employee_code", code)
             .put("pin", pin)
             .put("event_type", eventType)
             .put("idempotency_key", idempotencyKey)
+        if (faceEmbeddings != null) body.put("face_embeddings", embeddingsJson(faceEmbeddings))
         return post(serverUrl, "/api/v1/kiosk/clock", body, token) {
             ClockResult(parseStatus(it), it.getString("event_type"), it.getString("event_time"))
+        }
+    }
+
+    suspend fun enrollFace(
+        serverUrl: String,
+        token: String,
+        code: String,
+        pin: String,
+        embeddings: List<FloatArray>,
+    ): ApiResult<EmployeeStatus> {
+        val body = JSONObject()
+            .put("employee_code", code)
+            .put("pin", pin)
+            .put("embeddings", embeddingsJson(embeddings))
+        return post(serverUrl, "/api/v1/kiosk/face/enroll", body, token) { parseStatus(it) }
+    }
+
+    private fun embeddingsJson(embeddings: List<FloatArray>) = JSONArray().apply {
+        embeddings.forEach { embedding ->
+            put(JSONArray().apply { embedding.forEach { put(it.toDouble()) } })
         }
     }
 
@@ -76,6 +104,7 @@ object KioskApi {
             fullName = json.getString("full_name"),
             state = json.getString("state"),
             allowedActions = List(actions.length()) { actions.getString(it) },
+            face = json.optString("face", "none"),
         )
     }
 
@@ -103,6 +132,7 @@ object KioskApi {
             when {
                 code in 200..299 -> ApiResult.Success(parse(JSONObject(text)))
                 code == 401 && token != null && text.contains("Kiosk not paired") -> ApiResult.KioskUnpaired
+                code == 403 || (code == 422 && text.contains("Enrollment captures")) -> ApiResult.FaceRejected
                 code == 401 || code == 422 -> ApiResult.InvalidCredentials
                 code == 409 -> ApiResult.InvalidAction
                 code == 429 -> ApiResult.Locked

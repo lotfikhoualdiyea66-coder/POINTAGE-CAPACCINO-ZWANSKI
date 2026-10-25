@@ -6,6 +6,7 @@ from app.api.routes.attendance import router as attendance_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.employees import router as employees_router
+from app.api.routes.face import router as face_router
 from app.api.routes.health import router as health_router
 from app.api.routes.kiosk import router as kiosk_router
 from app.api.routes.shifts import router as shifts_router
@@ -25,9 +26,11 @@ app.add_middleware(
 if engine.dialect.name == "sqlite":
     Base.metadata.create_all(bind=engine)
     # create_all never alters existing tables; add columns introduced after a local DB was created.
-    if "pin_hash" not in {column["name"] for column in inspect(engine).get_columns("employees")}:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE employees ADD COLUMN pin_hash VARCHAR(255)"))
+    existing_columns = {column["name"] for column in inspect(engine).get_columns("employees")}
+    for column_name, column_type in [("pin_hash", "VARCHAR(255)"), ("face_enrollment_expires_at", "DATETIME")]:
+        if column_name not in existing_columns:
+            with engine.begin() as connection:
+                connection.execute(text(f"ALTER TABLE employees ADD COLUMN {column_name} {column_type}"))
 
 app.include_router(health_router)
 app.include_router(auth_router)
@@ -36,6 +39,7 @@ app.include_router(attendance_router)
 app.include_router(dashboard_router)
 app.include_router(shifts_router)
 app.include_router(kiosk_router)
+app.include_router(face_router)
 
 
 @app.get("/")

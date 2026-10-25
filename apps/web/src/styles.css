@@ -439,3 +439,18 @@ th {
 
 .pin-ok { color: var(--success); }
 .pin-missing { color: var(--danger); }
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.danger-action { color: var(--danger); }
+
+.muted-note {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  line-height: 1.4;
+}

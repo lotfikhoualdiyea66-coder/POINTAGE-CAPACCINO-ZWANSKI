@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     initial_admin_password: str = ""
     timezone: str = "Africa/Tunis"
     kiosk_pairing_code: str = ""
+    face_data_key: str = ""
+    # Cosine similarity cut-off for SFace embeddings (OpenCV reference value).
+    face_match_threshold: float = 0.363
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
