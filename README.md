@@ -17,7 +17,7 @@ python -m venv .venv
 . .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
-# Set a unique SECRET_KEY (at least 32 characters) and INITIAL_ADMIN_PASSWORD in .env.
+# Set a unique SECRET_KEY (at least 32 characters), INITIAL_ADMIN_PASSWORD and KIOSK_PAIRING_CODE in .env.
 python -m pytest
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```

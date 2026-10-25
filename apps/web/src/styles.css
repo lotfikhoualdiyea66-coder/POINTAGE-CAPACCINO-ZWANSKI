@@ -255,6 +255,7 @@ h1, h2, p { margin-top: 0; }
 }
 
 .form-field input,
+.pin-form input,
 .form-field select {
   width: 100%;
   min-width: 0;
@@ -268,6 +269,7 @@ h1, h2, p { margin-top: 0; }
 }
 
 .form-field input:focus,
+.pin-form input:focus,
 .form-field select:focus {
   outline: 2px solid var(--gold);
   outline-offset: 1px;
@@ -415,3 +417,25 @@ th {
     padding: 8px 5px;
   }
 }
+
+.inline-action {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+}
+
+.pin-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pin-form input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.pin-ok { color: var(--success); }
+.pin-missing { color: var(--danger); }

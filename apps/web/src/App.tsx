@@ -10,6 +10,15 @@ type Employee = {
   start_date: string;
   active: boolean;
   enrollment_state: string;
+  has_pin: boolean;
+};
+
+type KioskDevice = {
+  id: string;
+  device_name: string;
+  active: boolean;
+  last_seen_at: string | null;
+  created_at: string;
 };
 
 type JobFunction = {
@@ -25,6 +34,7 @@ type AttendanceEvent = {
   event_time: string;
   status: string;
   source: string;
+  device_id: string | null;
 };
 
 type ShiftTemplate = {
@@ -57,12 +67,23 @@ const localDateValue = () => {
   return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
 };
 
-const eventLabels: Record<string, string> = {
-  CLOCK_IN: "Arrivée",
-  CLOCK_OUT: "Départ",
-  BREAK_START: "Début de pause",
-  BREAK_END: "Fin de pause",
+const eventLabels: Record<"fr" | "ar", Record<string, string>> = {
+  fr: {
+    CLOCK_IN: "Arrivée",
+    CLOCK_OUT: "Départ",
+    BREAK_START: "Début de pause",
+    BREAK_END: "Fin de pause",
+  },
+  ar: {
+    CLOCK_IN: "دخول",
+    CLOCK_OUT: "خروج",
+    BREAK_START: "بداية الاستراحة",
+    BREAK_END: "نهاية الاستراحة",
+  },
 };
+
+const pinPattern = "\\d{4,8}";
+const digitsOnly = (value: string) => value.replace(/\D/g, "").slice(0, 8);
 
 export default function App() {
   const [language, setLanguage] = useState<"fr" | "ar">("fr");
@@ -140,6 +161,23 @@ export default function App() {
         scheduleFailed: "تعذر حفظ إعداد المناوبة.",
         noShifts: "أنشئ مناوبة أولاً.",
         overtime: "وقت إضافي",
+        pin: "الرمز السري (4 إلى 8 أرقام)",
+        pinSet: "الرمز السري مُعدّ",
+        pinMissing: "بدون رمز سري",
+        setPin: "تعيين الرمز السري",
+        savePin: "حفظ الرمز",
+        pinSaved: "تم حفظ الرمز السري.",
+        pinFailed: "تعذر حفظ الرمز السري (4 إلى 8 أرقام).",
+        employee: "الموظف",
+        kiosks: "أجهزة الحضور",
+        noKiosks: "لا يوجد جهاز مقترن. أدخل رمز الاقتران في التطبيق.",
+        lastSeen: "آخر اتصال",
+        revoke: "إلغاء الاقتران",
+        revoked: "ملغى",
+        active: "نشط",
+        source: "المصدر",
+        sourceKiosk: "جهاز الحضور",
+        sourceAdmin: "المسؤول",
       }
     : {
         title: "Cappuccino Lac 1",
@@ -213,6 +251,23 @@ export default function App() {
         scheduleFailed: "Impossible d’enregistrer le planning.",
         noShifts: "Créez d’abord un shift.",
         overtime: "Heures supplémentaires",
+        pin: "PIN (4 à 8 chiffres)",
+        pinSet: "PIN défini",
+        pinMissing: "Sans PIN",
+        setPin: "Définir le PIN",
+        savePin: "Enregistrer le PIN",
+        pinSaved: "PIN enregistré.",
+        pinFailed: "Impossible d’enregistrer le PIN (4 à 8 chiffres).",
+        employee: "Employé",
+        kiosks: "Bornes de pointage",
+        noKiosks: "Aucune borne jumelée. Saisissez le code de jumelage dans l’application.",
+        lastSeen: "Dernière activité",
+        revoke: "Révoquer",
+        revoked: "Révoquée",
+        active: "Active",
+        source: "Source",
+        sourceKiosk: "Borne",
+        sourceAdmin: "Administrateur",
       };
 
   const [health, setHealth] = useState("Checking");
@@ -249,6 +304,11 @@ export default function App() {
   const [employeeError, setEmployeeError] = useState("");
   const [employeeSuccess, setEmployeeSuccess] = useState("");
   const [isSavingEmployee, setIsSavingEmployee] = useState(false);
+  const [employeePin, setEmployeePin] = useState("");
+  const [pinEmployeeId, setPinEmployeeId] = useState<string | null>(null);
+  const [pinValue, setPinValue] = useState("");
+  const [kioskDevices, setKioskDevices] = useState<KioskDevice[]>([]);
+  const [liveRefresh, setLiveRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -302,26 +362,28 @@ export default function App() {
 
       const headers = { Authorization: `Bearer ${token}` };
       try {
-        const [employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse] = await Promise.all([
+        const [employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse, kioskResponse] = await Promise.all([
           fetch(`${apiBase}/api/v1/employees`, { headers }),
           fetch(`${apiBase}/api/v1/functions`, { headers }),
           fetch(`${apiBase}/api/v1/attendance`, { headers }),
           fetch(`${apiBase}/api/v1/shift-templates`, { headers }),
           fetch(`${apiBase}/api/v1/dashboard/workday?work_date=${reportDate}`, { headers }),
+          fetch(`${apiBase}/api/v1/kiosk/devices`, { headers }),
         ]);
 
-        if ([employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse].some((response) => response.status === 401)) {
+        if ([employeesResponse, functionsResponse, attendanceResponse, shiftTemplatesResponse, workdayResponse, kioskResponse].some((response) => response.status === 401)) {
           sessionStorage.removeItem("auth_token");
           if (!cancelled) setToken(null);
           return;
         }
 
-        const [employeeData, functionData, attendanceData, shiftTemplateData, workdayData] = await Promise.all([
+        const [employeeData, functionData, attendanceData, shiftTemplateData, workdayData, kioskData] = await Promise.all([
           employeesResponse.json(),
           functionsResponse.json(),
           attendanceResponse.json(),
           shiftTemplatesResponse.json(),
           workdayResponse.json(),
+          kioskResponse.json(),
         ]);
 
         if (!cancelled) {
@@ -330,6 +392,7 @@ export default function App() {
           setEvents(Array.isArray(attendanceData) ? attendanceData : []);
           setShiftTemplates(Array.isArray(shiftTemplateData) ? shiftTemplateData : []);
           setWorkdays(Array.isArray(workdayData.employees) ? workdayData.employees : []);
+          setKioskDevices(Array.isArray(kioskData) ? kioskData : []);
           setAssignmentEmployeeId((current) => current || employeeData[0]?.id || "");
           setAssignmentShiftId((current) => current || shiftTemplateData[0]?.id || "");
         }
@@ -346,7 +409,13 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [token, reportDate, scheduleRefresh]);
+  }, [token, reportDate, scheduleRefresh, liveRefresh]);
+
+  useEffect(() => {
+    if (!token) return;
+    const intervalId = window.setInterval(() => setLiveRefresh((current) => current + 1), 15_000);
+    return () => window.clearInterval(intervalId);
+  }, [token]);
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -386,12 +455,14 @@ export default function App() {
           job_function_id: jobFunctionId || null,
           start_date: startDate,
           active: true,
+          pin: employeePin,
         }),
       });
       if (!response.ok) throw new Error(text.employeeFailed);
       const employee = (await response.json()) as Employee;
       setEmployees((current) => [employee, ...current]);
       setEmployeeCode("");
+      setEmployeePin("");
       setFullName("");
       setJobFunctionId("");
       setStartDate(new Date().toISOString().slice(0, 10));
@@ -401,6 +472,38 @@ export default function App() {
       setEmployeeError(text.employeeFailed);
     } finally {
       setIsSavingEmployee(false);
+    }
+  };
+
+  const handlePinSave = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token || !pinEmployeeId) return;
+    setEmployeeError("");
+    setEmployeeSuccess("");
+    try {
+      const response = await fetch(`${apiBase}/api/v1/employees/${pinEmployeeId}/pin`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinValue }),
+      });
+      if (!response.ok) throw new Error(text.pinFailed);
+      setEmployees((current) => current.map((item) => item.id === pinEmployeeId ? { ...item, has_pin: true } : item));
+      setPinEmployeeId(null);
+      setPinValue("");
+      setEmployeeSuccess(text.pinSaved);
+    } catch {
+      setEmployeeError(text.pinFailed);
+    }
+  };
+
+  const handleKioskRevoke = async (deviceId: string) => {
+    if (!token) return;
+    const response = await fetch(`${apiBase}/api/v1/kiosk/devices/${deviceId}/revoke`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      setKioskDevices((current) => current.map((device) => device.id === deviceId ? { ...device, active: false } : device));
     }
   };
 
@@ -468,6 +571,14 @@ export default function App() {
 
   const toggleLanguage = () => setLanguage((current) => current === "fr" ? "ar" : "fr");
   const presentCount = workdays.filter((entry) => ["working", "on_break", "target_reached"].includes(entry.status)).length;
+  const employeeNames = new Map(employees.map((employee) => [employee.id, employee.full_name]));
+  const kioskNames = new Map(kioskDevices.map((device) => [device.id, device.device_name]));
+  const formatDateTime = (value: string) => new Date(value).toLocaleString(isArabic ? "ar" : "fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const formatMinutes = (minutes: number) => `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}`;
   const statusLabel = (status: string) => ({
     not_started: text.notStarted,
@@ -670,6 +781,18 @@ export default function App() {
                 <input value={fullName} onChange={(event) => setFullName(event.target.value)} minLength={2} maxLength={255} required />
               </label>
               <label className="form-field">
+                <span>{text.pin}</span>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  pattern={pinPattern}
+                  value={employeePin}
+                  onChange={(event) => setEmployeePin(digitsOnly(event.target.value))}
+                  required
+                />
+              </label>
+              <label className="form-field">
                 <span>{text.jobFunction}</span>
                 <select value={jobFunctionId} onChange={(event) => setJobFunctionId(event.target.value)}>
                   <option value="">{text.noFunction}</option>
@@ -700,7 +823,38 @@ export default function App() {
               employees.map((employee) => (
                 <li key={employee.id}>
                   <strong>{employee.full_name}</strong>
-                  <small>{employee.employee_code} · {text.enrollment}: {text.notEnrolled}</small>
+                  <small>
+                    {employee.employee_code} · <span className={employee.has_pin ? "pin-ok" : "pin-missing"}>{employee.has_pin ? text.pinSet : text.pinMissing}</span>
+                  </small>
+                  {pinEmployeeId === employee.id ? (
+                    <form className="pin-form" onSubmit={handlePinSave}>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="new-password"
+                        aria-label={text.pin}
+                        placeholder={text.pin}
+                        pattern={pinPattern}
+                        value={pinValue}
+                        onChange={(event) => setPinValue(digitsOnly(event.target.value))}
+                        required
+                        autoFocus
+                      />
+                      <button className="primary-action compact-action" type="submit">{text.savePin}</button>
+                      <button className="text-button" type="button" onClick={() => setPinEmployeeId(null)}>{text.cancel}</button>
+                    </form>
+                  ) : (
+                    <button
+                      className="text-button inline-action"
+                      type="button"
+                      onClick={() => {
+                        setPinEmployeeId(employee.id);
+                        setPinValue("");
+                      }}
+                    >
+                      {text.setPin}
+                    </button>
+                  )}
                 </li>
               ))
             )}
@@ -777,22 +931,51 @@ export default function App() {
           <h2>{text.recentEvents}</h2>
           <table>
             <thead>
-              <tr><th>{text.action}</th><th>{text.time}</th><th>{text.status}</th></tr>
+              <tr><th>{text.employee}</th><th>{text.action}</th><th>{text.time}</th><th>{text.source}</th></tr>
             </thead>
             <tbody>
               {events.length === 0 ? (
-                <tr><td colSpan={3}>{text.noEvents}</td></tr>
+                <tr><td colSpan={4}>{text.noEvents}</td></tr>
               ) : (
-                events.slice(0, 5).map((event) => (
+                events.slice(0, 10).map((event) => (
                   <tr key={event.id}>
-                    <td>{eventLabels[event.event_type] ?? event.event_type}</td>
-                    <td>{new Date(event.event_time).toLocaleTimeString(isArabic ? "ar" : "fr-FR", { hour: "2-digit", minute: "2-digit" })}</td>
-                    <td>{event.status}</td>
+                    <td>{employeeNames.get(event.employee_id) ?? event.employee_id}</td>
+                    <td>{eventLabels[language][event.event_type] ?? event.event_type}</td>
+                    <td>{formatDateTime(event.event_time)}</td>
+                    <td>
+                      {event.source === "kiosk_pin"
+                        ? `${text.sourceKiosk}${event.device_id ? ` · ${kioskNames.get(event.device_id) ?? ""}` : ""}`
+                        : text.sourceAdmin}
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+        </section>
+
+        <section className="card">
+          <h2>{text.kiosks}</h2>
+          <ul className="list">
+            {kioskDevices.length === 0 ? (
+              <li>{text.noKiosks}</li>
+            ) : (
+              kioskDevices.map((device) => (
+                <li key={device.id}>
+                  <strong>{device.device_name}</strong>
+                  <small>
+                    {device.active ? text.active : text.revoked}
+                    {device.last_seen_at ? ` · ${text.lastSeen}: ${formatDateTime(`${device.last_seen_at}Z`)}` : ""}
+                  </small>
+                  {device.active && (
+                    <button className="text-button inline-action" type="button" onClick={() => void handleKioskRevoke(device.id)}>
+                      {text.revoke}
+                    </button>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
         </section>
       </main>
     </div>

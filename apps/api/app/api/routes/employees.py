@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db, require_admin
 from app.models.employee import Employee, JobFunction
 from app.models.user import User
-from app.schemas.employee import EmployeeCreate, EmployeeRead
+from app.core.security import pwd_context
+from app.schemas.employee import EmployeeCreate, EmployeePinUpdate, EmployeeRead
 
 router = APIRouter(prefix="/api/v1", tags=["employees"])
 
@@ -33,6 +34,7 @@ def list_employees(db: Session = Depends(get_db), current_user: User = Depends(r
         start_date=e.start_date,
         active=e.active,
         enrollment_state=e.enrollment_state,
+        has_pin=e.pin_hash is not None,
     ) for e in employees]
 
 
@@ -52,6 +54,7 @@ def create_employee(
         start_date=payload.start_date,
         active=payload.active,
         enrollment_state="not_enrolled",
+        pin_hash=pwd_context.hash(payload.pin) if payload.pin else None,
     )
     db.add(employee)
     db.commit()
@@ -64,4 +67,19 @@ def create_employee(
         start_date=employee.start_date,
         active=employee.active,
         enrollment_state=employee.enrollment_state,
+        has_pin=employee.pin_hash is not None,
     )
+
+
+@router.put("/employees/{employee_id}/pin", status_code=status.HTTP_204_NO_CONTENT)
+def set_employee_pin(
+    employee_id: str,
+    payload: EmployeePinUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    employee.pin_hash = pwd_context.hash(payload.pin)
+    db.commit()

@@ -17,13 +17,13 @@
 - Backend schema, models, and attendance engine are under development.
 - Frontend dashboard scaffold is included.
 - Android debug APK builds with Gradle 8.7, JDK 17, and Android API 34.
-- The APK remembers its LAN API URL, retries health checks every 30 seconds, stores bounded non-sensitive diagnostics, and has an optional on-device YuNet face-count screen; it does not identify employees or submit attendance.
+- The APK pairs with the API, lets employees clock in/out and take breaks with their code + PIN, shows server status, stores bounded non-sensitive diagnostics, and has an optional on-device YuNet face-count screen.
 - Hardware-bound biometric provisioning and S22/Ubuntu deployment remain pending explicit device access and authorization.
 
 ## Remaining blockers
 - Emulator model tests pass; physical S22 camera, thermal, and accessibility testing remains pending.
 - APKs are debug-signed ABI splits, not production-signed releases.
-- Authenticated kiosk pairing and kiosk event submission are not implemented; attendance events can currently only be submitted through the admin API.
+- Kiosk pairing (shared pairing code → per-device token, revocable from the dashboard) and employee code + PIN clock-in/out are implemented. The in-memory lockout counters reset when the API restarts.
 - Face matching/enrollment and liveness are not implemented. Fingerprint attendance requires a compatible external reader and Android SDK.
 - This workspace still uses local SQLite; Supabase Postgres requires a private database URI and applied migrations.
 - Full Ubuntu systemd deployment requires the target machine and operating-system privileges.

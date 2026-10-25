@@ -1,12 +1,15 @@
+from datetime import datetime
 from typing import Generator
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.security import hash_kiosk_token
 from app.db.session import SessionLocal
+from app.models.system import KioskDevice
 from app.models.user import User
 
 
@@ -45,3 +48,16 @@ def require_admin(user: User = Depends(require_auth)) -> User:
     if user.role != "administrator":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required")
     return user
+
+
+def require_kiosk(x_kiosk_token: str | None = Header(default=None), db: Session = Depends(get_db)) -> KioskDevice:
+    device = (
+        db.query(KioskDevice).filter(KioskDevice.pairing_token == hash_kiosk_token(x_kiosk_token)).first()
+        if x_kiosk_token
+        else None
+    )
+    if not device or not device.active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Kiosk not paired")
+    device.last_seen_at = datetime.utcnow()
+    db.commit()
+    return device

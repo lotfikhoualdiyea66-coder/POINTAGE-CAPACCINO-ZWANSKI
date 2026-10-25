@@ -2,9 +2,13 @@
 
 ## Current build status
 
-The native Kotlin/Jetpack Compose project currently produces **debug APKs**. It opens a French/Arabic safe-setup screen, shows the Africa/Tunis date and time, and keeps the display awake. It saves a private-LAN API address and automatically checks the health endpoint at startup and every 30 seconds. The optional face-camera diagnostic processes frames in memory with YuNet and reports only a face count; it does not store frames, match employees, or submit attendance events.
+The native Kotlin/Jetpack Compose project produces **debug APKs** (fine for LAN-only use; no Play Store signing). It is a working French/Arabic attendance kiosk:
 
-This APK is suitable for checking the native app launch and bilingual presentation on the S22. It is not an operational attendance kiosk or a release-signed production app.
+- **Pairing:** on first launch, enter the server address and the pairing code (`KIOSK_PAIRING_CODE` in `apps/api/.env`). The server returns a device token; the phone stores it and every kiosk request is authenticated with it. Paired phones are listed in the dashboard and can be revoked there.
+- **Clocking:** an employee types their employee code and PIN, sees their current status, and taps Arrivée / Début de pause / Fin de pause / Départ. The server stamps the time (Africa/Tunis) and enforces valid transitions; retries after a network error cannot record the same tap twice.
+- **Lockouts:** 5 wrong PINs lock that employee code for 5 minutes; 5 wrong pairing codes lock the client for 15 minutes.
+
+No camera is needed. The optional face-camera diagnostic (setup screen) processes frames in memory with YuNet and reports only a face count; it does not store frames or identify employees.
 
 ## Build on Windows
 
@@ -39,9 +43,10 @@ The Gradle wrapper pins Gradle 8.7. No production signing key is included in the
 1. Connect the computer and kiosk to the same trusted private Wi-Fi. Do not use a guest network with client isolation.
 2. Reserve a stable LAN address for the computer in the router, then start the API with `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`.
 3. Allow port 8000 through the computer firewall for private networks only.
-4. On the kiosk, enter `http://<dashboard-computer-LAN-IPv4>:8000` and tap **Enregistrer et tester** (or the Arabic equivalent). The address is stored on the device and checked again automatically after restarts.
+4. On the kiosk, enter `http://<dashboard-computer-LAN-IPv4>:8000`, the pairing code and a device name, then tap **Jumeler** (or the Arabic equivalent). The pairing is stored on the device and survives restarts; **Configuration de la borne** re-pairs it.
+5. In the dashboard, give each employee a 4–8 digit PIN (when adding them, or with **Définir le PIN**).
 
-The app checks only `GET /api/v1/health`. The dashboard computer's `127.0.0.1` address will not work from a phone. HTTP is allowed only for private IPv4 addresses in the app; use verified HTTPS and proper device credentials before operational use. The dashboard UI itself is served separately on port 5173.
+The app polls `GET /api/v1/health` to show the connection status. The dashboard computer's `127.0.0.1` address will not work from a phone. HTTP is allowed only for private IPv4 addresses in the app; use verified HTTPS and proper device credentials before operational use. The dashboard UI itself is served separately on port 5173.
 
 The kiosk writes non-sensitive connection diagnostics to its private app storage (`kiosk-diagnostics.log`) and rotates one previous file. Tap **Copier les journaux** to copy the logs for support. These logs contain health-check outcomes and timings, not employee records, passwords, or biometric data.
 

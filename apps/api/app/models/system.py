@@ -13,7 +13,7 @@ class KioskDevice(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     device_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    pairing_token: Mapped[str] = mapped_column(String(255), nullable=False)
+    pairing_token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

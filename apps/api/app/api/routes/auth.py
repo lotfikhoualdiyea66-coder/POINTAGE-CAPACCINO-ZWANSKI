@@ -2,16 +2,15 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.core.config import settings
+from app.core.security import pwd_context
 from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 token_algorithm = "HS256"
 
 

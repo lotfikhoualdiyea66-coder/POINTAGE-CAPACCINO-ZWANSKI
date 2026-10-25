@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     initial_admin_email: str = "admin@cappuccino.example"
     initial_admin_password: str = ""
     timezone: str = "Africa/Tunis"
+    kiosk_pairing_code: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
